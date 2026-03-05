@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1
--- Tiempo de generación: 23-02-2026 a las 17:23:52
+-- Tiempo de generación: 05-03-2026 a las 17:37:48
 -- Versión del servidor: 10.4.32-MariaDB
 -- Versión de PHP: 8.2.12
 
@@ -18,8 +18,71 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- Base de datos: `practica1`
+-- Base de datos: `libros`
 --
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `auditoria_libro`
+--
+
+CREATE TABLE `auditoria_libro` (
+  `id` int(11) NOT NULL,
+  `lib_isbn` bigint(20) DEFAULT NULL,
+  `titulo` varchar(100) DEFAULT NULL,
+  `genero` varchar(50) DEFAULT NULL,
+  `paginas` int(11) DEFAULT NULL,
+  `accion` varchar(20) DEFAULT NULL,
+  `fecha` datetime DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Volcado de datos para la tabla `auditoria_libro`
+--
+
+INSERT INTO `auditoria_libro` (`id`, `lib_isbn`, `titulo`, `genero`, `paginas`, `accion`, `fecha`) VALUES
+(1, 6666666666, 'La Odisea', 'Épico', 350, 'INSERT', '2026-03-05 10:35:28');
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `audi_libro_update`
+--
+
+CREATE TABLE `audi_libro_update` (
+  `id` int(11) NOT NULL,
+  `lib_id` int(11) DEFAULT NULL,
+  `titulo_anterior` varchar(100) DEFAULT NULL,
+  `titulo_nuevo` varchar(100) DEFAULT NULL,
+  `genero_anterior` varchar(50) DEFAULT NULL,
+  `genero_nuevo` varchar(50) DEFAULT NULL,
+  `paginas_anteriores` int(11) DEFAULT NULL,
+  `paginas_nuevas` int(11) DEFAULT NULL,
+  `fecha_cambio` datetime DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `audi_socio`
+--
+
+CREATE TABLE `audi_socio` (
+  `id_audi` int(10) NOT NULL,
+  `socNumero_audi` int(11) DEFAULT NULL,
+  `socNombre_anterior` varchar(45) DEFAULT NULL,
+  `socApellido_anterior` varchar(45) DEFAULT NULL,
+  `socDireccion_anterior` varchar(255) DEFAULT NULL,
+  `socTelefono_anterior` varchar(10) DEFAULT NULL,
+  `socNombre_nuevo` varchar(45) DEFAULT NULL,
+  `socApellido_nuevo` varchar(45) DEFAULT NULL,
+  `socDireccion_nuevo` varchar(255) DEFAULT NULL,
+  `socTelefono_nuevo` varchar(10) DEFAULT NULL,
+  `audi_fechaModificacion` datetime DEFAULT NULL,
+  `audi_usuario` varchar(10) DEFAULT NULL,
+  `audi_accion` varchar(45) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -77,12 +140,63 @@ INSERT INTO `libro` (`lib_isbn`, `lib_titulo`, `lib_genero`, `lib_numeropaginas`
 (2718281828, 'El Bosque de los Suspiros ', 'novela ', 387, 2),
 (3141592653, 'El Secreto de las Estrellas Olvidadas ', 'Misterio ', 203, 7),
 (5555555555, 'La Última Llave del Destino ', 'cuento ', 503, 7),
+(6666666666, 'La Odisea', 'Épico', 350, 10),
 (7777777777, 'El Misterio de la Luna Plateada ', 'Misterio ', 422, 7),
 (8642097531, 'El Reloj de Arena Infinito ', 'novela ', 321, 7),
 (8888888888, 'La Ciudad de los Susurros ', 'Misterio ', 274, 1),
 (9517530862, 'Las Crónicas del Eco Silencioso ', 'fantasía ', 448, 7),
 (9876543210, 'El Laberinto de los Recuerdos ', 'cuento ', 412, 7),
 (9999999999, 'El Enigma de los Espejos Rotos ', 'romance ', 156, 7);
+
+--
+-- Disparadores `libro`
+--
+DELIMITER $$
+CREATE TRIGGER `trg_auditoria_insert_libro` AFTER INSERT ON `libro` FOR EACH ROW BEGIN
+    INSERT INTO auditoria_libro(
+        lib_isbn,
+        titulo,
+        genero,
+        paginas,
+        accion,
+        fecha
+    )
+    VALUES(
+        NEW.lib_isbn,
+        NEW.lib_titulo,
+        NEW.lib_genero,
+        NEW.lib_numeropaginas,
+        'INSERT',
+        NOW()
+    );
+END
+$$
+DELIMITER ;
+DELIMITER $$
+CREATE TRIGGER `trg_auditoria_update_libro` AFTER UPDATE ON `libro` FOR EACH ROW BEGIN
+    INSERT INTO auditoria_libro(
+        lib_isbn,
+        titulo_anterior,
+        titulo_nuevo,
+        genero_anterior,
+        genero_nuevo,
+        paginas_anteriores,
+        paginas_nuevas,
+        fecha_cambio
+    )
+    VALUES(
+        OLD.lib_isbn,
+        OLD.lib_titulo,
+        NEW.lib_titulo,
+        OLD.lib_genero,
+        NEW.lib_genero,
+        OLD.lib_numeropaginas,
+        NEW.lib_numeropaginas,
+        NOW()
+    );
+END
+$$
+DELIMITER ;
 
 -- --------------------------------------------------------
 
@@ -144,6 +258,60 @@ INSERT INTO `socio` (`Soc_numero`, `soc_nombre`, `soc_apellido`, `soc_direccion`
 (11, 'Alejandro ', 'Torres ', 'Carrera del Oeste 765, Ciudad Nueva, Murcia ', '4951234567'),
 (12, 'Sofia ', 'Morales ', 'Avenida del Mar 098, Costa Brava, Gijón ', '5512345678');
 
+--
+-- Disparadores `socio`
+--
+DELIMITER $$
+CREATE TRIGGER `socio_after_delete` AFTER DELETE ON `socio` FOR EACH ROW insert into audi_socio(
+    socNumero_audi,
+    socNombre_anterior,
+    socApellido_anterior,
+    socDireccion_anterior,
+    socTelefono_anterior,
+    audi_fechamodificacion,
+    audi_usuario,
+    audi_accion)
+    values(
+        old.soc_numero,
+        old.soc_nombre,
+        old.soc_apellido,
+        old.soc_direccion,
+        old.soc_telefono,
+        Now(),
+        current_user(),
+        'Registro eliminado')
+$$
+DELIMITER ;
+DELIMITER $$
+CREATE TRIGGER `socios_before_update` BEFORE UPDATE ON `socio` FOR EACH ROW INSERT INTO audi_socio(
+    socNumero_audi,
+    socNombre_anterior,
+    socApellido_anterior,
+    socDireccion_anterior,
+    socTelefono_anterior,
+    socNombre_nuevo,
+    socApellido_nuevo,
+    socDireccion_nuevo,
+    socTelefono_nuevo,
+    audi_fechaModificacion,
+    audi_usuario,
+    audi_accion)
+VALUES(
+    new.soc_numero,
+    old.soc_nombre,
+    old.soc_apellido,
+    old.soc_direccion,
+    old.soc_telefono,
+    new.soc_nombre,
+    new.soc_apellido,
+    new.soc_direccion,
+    new.soc_telefono,
+    NOW(),
+    CURRENT_USER(),
+    'Actualización')
+$$
+DELIMITER ;
+
 -- --------------------------------------------------------
 
 --
@@ -182,6 +350,24 @@ INSERT INTO `tipoautores` (`tipoautor`, `copiaISBN`, `copiaAutor`) VALUES
 --
 
 --
+-- Indices de la tabla `auditoria_libro`
+--
+ALTER TABLE `auditoria_libro`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indices de la tabla `audi_libro_update`
+--
+ALTER TABLE `audi_libro_update`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indices de la tabla `audi_socio`
+--
+ALTER TABLE `audi_socio`
+  ADD PRIMARY KEY (`id_audi`);
+
+--
 -- Indices de la tabla `autor`
 --
 ALTER TABLE `autor`
@@ -213,6 +399,28 @@ ALTER TABLE `socio`
 ALTER TABLE `tipoautores`
   ADD KEY `copiaISBN` (`copiaISBN`),
   ADD KEY `copiaAutor` (`copiaAutor`);
+
+--
+-- AUTO_INCREMENT de las tablas volcadas
+--
+
+--
+-- AUTO_INCREMENT de la tabla `auditoria_libro`
+--
+ALTER TABLE `auditoria_libro`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
+-- AUTO_INCREMENT de la tabla `audi_libro_update`
+--
+ALTER TABLE `audi_libro_update`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de la tabla `audi_socio`
+--
+ALTER TABLE `audi_socio`
+  MODIFY `id_audi` int(10) NOT NULL AUTO_INCREMENT;
 
 --
 -- Restricciones para tablas volcadas
