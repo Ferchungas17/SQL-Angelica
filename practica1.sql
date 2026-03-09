@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1
--- Tiempo de generación: 05-03-2026 a las 17:37:48
+-- Tiempo de generación: 09-03-2026 a las 17:11:38
 -- Versión del servidor: 10.4.32-MariaDB
 -- Versión de PHP: 8.2.12
 
@@ -20,6 +20,147 @@ SET time_zone = "+00:00";
 --
 -- Base de datos: `libros`
 --
+
+DELIMITER $$
+--
+-- Procedimientos
+--
+CREATE DEFINER=`root`@`localhost` PROCEDURE `actualizar_genero_libro` (IN `isbn_libro` BIGINT, IN `nuevo_genero` VARCHAR(50))   BEGIN
+
+UPDATE libro
+SET lib_genero = nuevo_genero
+WHERE lib_isbn = isbn_libro;
+
+END$$
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `actualizar_socio` (IN `id_socio` INT, IN `nueva_direccion` VARCHAR(255), IN `nuevo_telefono` VARCHAR(10))   BEGIN
+
+UPDATE socio
+SET 
+soc_direccion = nueva_direccion,
+soc_telefono = nuevo_telefono
+WHERE Soc_numero = id_socio;
+
+END$$
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `buscar_libro_nombre` (IN `nombre_libro` VARCHAR(255))   BEGIN
+
+SELECT *
+FROM libro
+WHERE lib_titulo LIKE CONCAT('%', nombre_libro, '%');
+
+END$$
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `eliminar_libro` (IN `isbn_libro` BIGINT)   BEGIN
+
+IF NOT EXISTS (
+SELECT *
+FROM prestamo
+WHERE lib_copiaisbn = isbn_libro
+)
+THEN
+
+DELETE FROM libro
+WHERE lib_isbn = isbn_libro;
+
+END IF;
+
+END$$
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `historial_prestamos_socio` (IN `id_socio` INT)   BEGIN
+
+SELECT 
+    s.soc_nombre,
+    s.soc_apellido,
+    l.lib_titulo,
+    p.pres_fechaprestamo,
+    p.pres_fechadevolucion
+FROM prestamo p
+INNER JOIN socio s 
+ON p.soc_copianumero = s.Soc_numero
+INNER JOIN libro l 
+ON p.lib_copiaisbn = l.lib_isbn
+WHERE s.Soc_numero = id_socio;
+
+END$$
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `insertar_socio` (IN `nombre` VARCHAR(45), IN `apellido` VARCHAR(45), IN `direccion` VARCHAR(255), IN `telefono` VARCHAR(10))   BEGIN
+
+INSERT INTO socio
+(soc_nombre, soc_apellido, soc_direccion, soc_telefono)
+VALUES
+(nombre, apellido, direccion, telefono);
+
+END$$
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `libros_disponibles` ()   BEGIN
+
+SELECT *
+FROM libro
+WHERE lib_isbn NOT IN (
+    SELECT lib_copiaisbn
+    FROM prestamo
+);
+
+END$$
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `libros_en_prestamo` ()   BEGIN
+SELECT 
+    l.lib_titulo,
+    l.lib_isbn,
+    s.soc_nombre,
+    s.soc_apellido,
+    p.pres_fechaprestamo,
+    p.pres_fechadevolucion
+FROM prestamo p
+INNER JOIN socio s 
+ON p.soc_copianumero = s.Soc_numero
+INNER JOIN libro l 
+ON p.lib_copiaisbn = l.lib_isbn;
+END$$
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `socios_con_prestamos` ()   BEGIN
+SELECT 
+    Soc_numero,
+    soc_nombre,
+    soc_apellido,
+    pres_id,
+    pres_fechaprestamo,
+    pres_fechadevolucion
+FROM socio s
+LEFT JOIN prestamo p 
+ON Soc_numero = soc_copianumero;
+END$$
+
+--
+-- Funciones
+--
+CREATE DEFINER=`root`@`localhost` FUNCTION `dias_prestamo` (`idlibro` BIGINT) RETURNS INT(11) DETERMINISTIC BEGIN
+
+DECLARE dias INT;
+
+SELECT DATEDIFF(pres_fechadevolucion, pres_fechaprestamo)
+INTO dias
+FROM prestamo
+WHERE lib_copiaisbn = idlibro
+LIMIT 1;
+
+RETURN dias;
+
+END$$
+
+CREATE DEFINER=`root`@`localhost` FUNCTION `total_socios` () RETURNS INT(11) DETERMINISTIC BEGIN
+
+DECLARE cantidad INT;
+
+SELECT COUNT(*) INTO cantidad
+FROM socio;
+
+RETURN cantidad;
+
+END$$
+
+DELIMITER ;
 
 -- --------------------------------------------------------
 
@@ -43,6 +184,22 @@ CREATE TABLE `auditoria_libro` (
 
 INSERT INTO `auditoria_libro` (`id`, `lib_isbn`, `titulo`, `genero`, `paginas`, `accion`, `fecha`) VALUES
 (1, 6666666666, 'La Odisea', 'Épico', 350, 'INSERT', '2026-03-05 10:35:28');
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `audi_libro`
+--
+
+CREATE TABLE `audi_libro` (
+  `id_audi` int(11) NOT NULL,
+  `lib_isbn_anterior` bigint(20) DEFAULT NULL,
+  `titulo_anterior` varchar(255) DEFAULT NULL,
+  `genero_anterior` varchar(50) DEFAULT NULL,
+  `paginas_anterior` int(11) DEFAULT NULL,
+  `accion` varchar(20) DEFAULT NULL,
+  `fecha` datetime DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -83,6 +240,13 @@ CREATE TABLE `audi_socio` (
   `audi_usuario` varchar(10) DEFAULT NULL,
   `audi_accion` varchar(45) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Volcado de datos para la tabla `audi_socio`
+--
+
+INSERT INTO `audi_socio` (`id_audi`, `socNumero_audi`, `socNombre_anterior`, `socApellido_anterior`, `socDireccion_anterior`, `socTelefono_anterior`, `socNombre_nuevo`, `socApellido_nuevo`, `socDireccion_nuevo`, `socTelefono_nuevo`, `audi_fechaModificacion`, `audi_usuario`, `audi_accion`) VALUES
+(1, 1, 'Ana ', 'Ruiz ', 'Calle Primavera 123, Ciudad Jardín, Barcelona ', '9123456780', 'Ana ', 'Ruiz ', 'Calle 50', '3109876543', '2026-03-09 10:16:23', 'root@local', 'Actualización');
 
 -- --------------------------------------------------------
 
@@ -140,7 +304,6 @@ INSERT INTO `libro` (`lib_isbn`, `lib_titulo`, `lib_genero`, `lib_numeropaginas`
 (2718281828, 'El Bosque de los Suspiros ', 'novela ', 387, 2),
 (3141592653, 'El Secreto de las Estrellas Olvidadas ', 'Misterio ', 203, 7),
 (5555555555, 'La Última Llave del Destino ', 'cuento ', 503, 7),
-(6666666666, 'La Odisea', 'Épico', 350, 10),
 (7777777777, 'El Misterio de la Luna Plateada ', 'Misterio ', 422, 7),
 (8642097531, 'El Reloj de Arena Infinito ', 'novela ', 321, 7),
 (8888888888, 'La Ciudad de los Susurros ', 'Misterio ', 274, 1),
@@ -245,7 +408,8 @@ CREATE TABLE `socio` (
 --
 
 INSERT INTO `socio` (`Soc_numero`, `soc_nombre`, `soc_apellido`, `soc_direccion`, `soc_telefono`) VALUES
-(1, 'Ana ', 'Ruiz ', 'Calle Primavera 123, Ciudad Jardín, Barcelona ', '9123456780'),
+(0, 'Juan', 'Perez', 'Calle 10', '3001234567'),
+(1, 'Ana ', 'Ruiz ', 'Calle 50', '3109876543'),
 (2, 'Andrés Felipe ', 'Galindo Luna ', 'Avenida del Sol 456, Pueblo Nuevo, Madrid ', '2123456789'),
 (3, 'Juan ', 'González ', 'Calle Principal 789, Villa Flores, Valencia ', '2012345678'),
 (4, 'María ', 'Rodríguez ', 'Carrera del Río 321, El Pueblo, Sevilla ', '3012345678'),
@@ -356,6 +520,12 @@ ALTER TABLE `auditoria_libro`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Indices de la tabla `audi_libro`
+--
+ALTER TABLE `audi_libro`
+  ADD PRIMARY KEY (`id_audi`);
+
+--
 -- Indices de la tabla `audi_libro_update`
 --
 ALTER TABLE `audi_libro_update`
@@ -411,6 +581,12 @@ ALTER TABLE `auditoria_libro`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
+-- AUTO_INCREMENT de la tabla `audi_libro`
+--
+ALTER TABLE `audi_libro`
+  MODIFY `id_audi` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT de la tabla `audi_libro_update`
 --
 ALTER TABLE `audi_libro_update`
@@ -420,7 +596,7 @@ ALTER TABLE `audi_libro_update`
 -- AUTO_INCREMENT de la tabla `audi_socio`
 --
 ALTER TABLE `audi_socio`
-  MODIFY `id_audi` int(10) NOT NULL AUTO_INCREMENT;
+  MODIFY `id_audi` int(10) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- Restricciones para tablas volcadas
