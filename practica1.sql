@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1
--- Tiempo de generación: 09-03-2026 a las 17:11:38
+-- Tiempo de generación: 09-03-2026 a las 17:37:47
 -- Versión del servidor: 10.4.32-MariaDB
 -- Versión de PHP: 8.2.12
 
@@ -188,6 +188,21 @@ INSERT INTO `auditoria_libro` (`id`, `lib_isbn`, `titulo`, `genero`, `paginas`, 
 -- --------------------------------------------------------
 
 --
+-- Estructura de tabla para la tabla `audi_autor`
+--
+
+CREATE TABLE `audi_autor` (
+  `id_audi` int(11) NOT NULL,
+  `autor_id` int(11) DEFAULT NULL,
+  `nombre_anterior` varchar(100) DEFAULT NULL,
+  `nombre_nuevo` varchar(100) DEFAULT NULL,
+  `accion` varchar(20) DEFAULT NULL,
+  `fecha` datetime DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Estructura de tabla para la tabla `audi_libro`
 --
 
@@ -279,6 +294,54 @@ INSERT INTO `autor` (`aut_codigo`, `aut_apellido`, `aut_nacimiento`, `aut_muerte
 (890, 'Brown ', '1982-11-17', '0000-00-00'),
 (901, 'Soto ', '1979-05-13', '2015-11-05');
 
+--
+-- Disparadores `autor`
+--
+DELIMITER $$
+CREATE TRIGGER `trg_delete_autor` BEFORE DELETE ON `autor` FOR EACH ROW BEGIN
+
+INSERT INTO audi_autor(
+autor_id,
+apelkido_anterior,
+apellido_nuevo,
+accion,
+fecha
+)
+
+VALUES(
+OLD.aut_codigo,
+OLD.aut_apellido,
+NULL,
+'DELETE',
+NOW()
+);
+
+END
+$$
+DELIMITER ;
+DELIMITER $$
+CREATE TRIGGER `trg_update_autor` BEFORE UPDATE ON `autor` FOR EACH ROW BEGIN
+
+INSERT INTO audi_autor(
+autor_codigo,
+apellido_anterior,
+apellido_nuevo,
+accion,
+fecha
+)
+
+VALUES(
+OLD.aut_codigo,
+OLD.aut_apellido,
+NEW.aut_apellido,
+'UPDATE',
+NOW()
+);
+
+END
+$$
+DELIMITER ;
+
 -- --------------------------------------------------------
 
 --
@@ -357,6 +420,30 @@ CREATE TRIGGER `trg_auditoria_update_libro` AFTER UPDATE ON `libro` FOR EACH ROW
         NEW.lib_numeropaginas,
         NOW()
     );
+END
+$$
+DELIMITER ;
+DELIMITER $$
+CREATE TRIGGER `trg_delete_libro` BEFORE DELETE ON `libro` FOR EACH ROW BEGIN
+
+INSERT INTO audi_libro(
+lib_isbn_anterior,
+titulo_anterior,
+genero_anterior,
+paginas_anterior,
+accion,
+fecha
+)
+
+VALUES(
+OLD.lib_isbn,
+OLD.lib_titulo,
+OLD.lib_genero,
+OLD.lib_numeropaginas,
+'DELETE',
+NOW()
+);
+
 END
 $$
 DELIMITER ;
@@ -509,6 +596,54 @@ INSERT INTO `tipoautores` (`tipoautor`, `copiaISBN`, `copiaAutor`) VALUES
 ('Autor', 7777777777, 765),
 ('Autor', 9999999999, 98);
 
+-- --------------------------------------------------------
+
+--
+-- Estructura Stand-in para la vista `vista_libros_prestados`
+-- (Véase abajo para la vista actual)
+--
+CREATE TABLE `vista_libros_prestados` (
+`lib_isbn` bigint(20)
+,`lib_titulo` varchar(255)
+,`soc_nombre` varchar(45)
+,`soc_apellido` varchar(45)
+,`pres_fechaprestamo` date
+,`pres_fechadevolucion` date
+);
+
+-- --------------------------------------------------------
+
+--
+-- Estructura Stand-in para la vista `vista_prestamos_por_socio`
+-- (Véase abajo para la vista actual)
+--
+CREATE TABLE `vista_prestamos_por_socio` (
+`Soc_numero` int(11)
+,`soc_nombre` varchar(45)
+,`soc_apellido` varchar(45)
+,`lib_titulo` varchar(255)
+,`pres_fechaprestamo` date
+,`pres_fechadevolucion` date
+);
+
+-- --------------------------------------------------------
+
+--
+-- Estructura para la vista `vista_libros_prestados`
+--
+DROP TABLE IF EXISTS `vista_libros_prestados`;
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vista_libros_prestados`  AS SELECT `l`.`lib_isbn` AS `lib_isbn`, `l`.`lib_titulo` AS `lib_titulo`, `s`.`soc_nombre` AS `soc_nombre`, `s`.`soc_apellido` AS `soc_apellido`, `p`.`pres_fechaprestamo` AS `pres_fechaprestamo`, `p`.`pres_fechadevolucion` AS `pres_fechadevolucion` FROM ((`prestamo` `p` join `libro` `l` on(`p`.`lib_copiaisbn` = `l`.`lib_isbn`)) join `socio` `s` on(`p`.`soc_copianumero` = `s`.`Soc_numero`)) ORDER BY `p`.`pres_fechaprestamo` DESC ;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura para la vista `vista_prestamos_por_socio`
+--
+DROP TABLE IF EXISTS `vista_prestamos_por_socio`;
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vista_prestamos_por_socio`  AS SELECT `s`.`Soc_numero` AS `Soc_numero`, `s`.`soc_nombre` AS `soc_nombre`, `s`.`soc_apellido` AS `soc_apellido`, `l`.`lib_titulo` AS `lib_titulo`, `p`.`pres_fechaprestamo` AS `pres_fechaprestamo`, `p`.`pres_fechadevolucion` AS `pres_fechadevolucion` FROM ((`prestamo` `p` join `socio` `s` on(`p`.`soc_copianumero` = `s`.`Soc_numero`)) join `libro` `l` on(`p`.`lib_copiaisbn` = `l`.`lib_isbn`)) ORDER BY `s`.`soc_nombre` ASC, `p`.`pres_fechaprestamo` DESC ;
+
 --
 -- Índices para tablas volcadas
 --
@@ -518,6 +653,12 @@ INSERT INTO `tipoautores` (`tipoautor`, `copiaISBN`, `copiaAutor`) VALUES
 --
 ALTER TABLE `auditoria_libro`
   ADD PRIMARY KEY (`id`);
+
+--
+-- Indices de la tabla `audi_autor`
+--
+ALTER TABLE `audi_autor`
+  ADD PRIMARY KEY (`id_audi`);
 
 --
 -- Indices de la tabla `audi_libro`
@@ -547,7 +688,8 @@ ALTER TABLE `autor`
 -- Indices de la tabla `libro`
 --
 ALTER TABLE `libro`
-  ADD PRIMARY KEY (`lib_isbn`);
+  ADD PRIMARY KEY (`lib_isbn`),
+  ADD KEY `idx_lib_titulo` (`lib_titulo`);
 
 --
 -- Indices de la tabla `prestamo`
@@ -579,6 +721,12 @@ ALTER TABLE `tipoautores`
 --
 ALTER TABLE `auditoria_libro`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
+-- AUTO_INCREMENT de la tabla `audi_autor`
+--
+ALTER TABLE `audi_autor`
+  MODIFY `id_audi` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT de la tabla `audi_libro`
@@ -615,6 +763,24 @@ ALTER TABLE `prestamo`
 ALTER TABLE `tipoautores`
   ADD CONSTRAINT `tipoautores_ibfk_1` FOREIGN KEY (`copiaISBN`) REFERENCES `libro` (`lib_isbn`),
   ADD CONSTRAINT `tipoautores_ibfk_2` FOREIGN KEY (`copiaAutor`) REFERENCES `autor` (`aut_codigo`);
+
+DELIMITER $$
+--
+-- Eventos
+--
+CREATE DEFINER=`root`@`localhost` EVENT `evento_prestamos_vencidos` ON SCHEDULE EVERY 1 DAY STARTS '2026-03-09 11:28:51' ENDS '2026-04-08 11:28:51' ON COMPLETION NOT PRESERVE ENABLE DO BEGIN
+
+SELECT 
+lib_copiaisbn,
+soc_copianumero,
+pres_fechaprestamo,
+pres_fechadevolucion
+FROM prestamo
+WHERE pres_fechadevolucion < CURDATE();
+
+END$$
+
+DELIMITER ;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
